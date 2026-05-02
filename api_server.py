@@ -6,6 +6,7 @@ import random
 import logging
 import httpx
 import asyncio
+import subprocess
 from fastapi import FastAPI, Request, HTTPException, BackgroundTasks
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -13,8 +14,9 @@ from typing import List, Optional, Dict, Any
 
 # --- Configuration ---
 ACCOUNTS_FILE = "gemini_accounts.json"
-BACKEND_BASE_URL = "http://127.0.0.1:18789" # Will be updated to match docker or local backend
 LOG_FILE = "gemini_bridge.log"
+BACKEND_BIN = "./geminiweb2api"
+BACKEND_PORT = 18889 # Internal backend port
 
 logging.basicConfig(
     level=logging.INFO,
@@ -30,6 +32,7 @@ class AccountManager:
         self.filepath = filepath
         self.accounts = []
         self.load_accounts()
+        self.backend_process = None
 
     def load_accounts(self):
         try:
@@ -43,7 +46,6 @@ class AccountManager:
     def get_account(self):
         if not self.accounts:
             return None
-        # Simple random choice for load balancing
         return random.choice(self.accounts)
 
     def remove_account(self, account_id):
@@ -52,7 +54,43 @@ class AccountManager:
             json.dump(self.accounts, f, indent=2)
         logger.warning(f"Account {account_id} removed due to failure.")
 
+    def ensure_backend(self):
+        """Start geminiweb2api backend if not running"""
+        if self.backend_process and self.backend_process.poll() is None:
+            return
+        
+        logger.info("Starting geminiweb2api backend...")
+        # Note: geminiweb2api seems to use 'port' in config or 8080 by default. 
+        # But we want to override it. Let's check if it accepts -port or we need to write config.
+        # Based on log, it says 8080.
+        cmd = [BACKEND_BIN] 
+        # Let's write a temporary config.json to force port 18889
+        config = {
+            "port": BACKEND_PORT,
+            "proxy": "",
+            "base_url": "https://gemini.google.com"
+        }
+        with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json"), "w") as f:
+            json.dump(config, f)
+
+        self.backend_process = subprocess.Popen(
+            cmd, 
+            stdout=subprocess.DEVNULL, 
+            stderr=subprocess.DEVNULL,
+            cwd=os.path.dirname(os.path.abspath(__file__))
+        )
+        time.sleep(3) # Wait for startup
+
 account_manager = AccountManager(ACCOUNTS_FILE)
+
+@app.on_event("startup")
+async def startup_event():
+    account_manager.ensure_backend()
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    if account_manager.backend_process:
+        account_manager.backend_process.terminate()
 
 # --- OpenAI-like Models ---
 class ChatMessage(BaseModel):
@@ -99,7 +137,7 @@ async def chat_completions(request: ChatCompletionRequest):
     messages = inject_tool_instruction(request.messages, request.tools)
     
     # Map model ID
-    target_model = "gemini-2.0-flash-exp" # Defaulting to flash exp or pro
+    target_model = "gemini-2.0-flash-exp" 
     
     payload = {
         "model": target_model,
@@ -109,9 +147,8 @@ async def chat_completions(request: ChatCompletionRequest):
         "proxy": acc.get('proxy', '')
     }
 
-    # We assume a local gemini-web-to-api instance is running or accessible
-    # For now, let's target the existing docker bridges or a new central one
-    backend_url = f"http://127.0.0.1:18789/v1/chat/completions" # Adjust port
+    # Use our internal geminiweb2api backend
+    backend_url = f"http://127.0.0.1:{BACKEND_PORT}/v1/chat/completions"
 
     async def stream_generator():
         async with httpx.AsyncClient(timeout=120.0) as client:
