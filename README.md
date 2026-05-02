@@ -15,6 +15,8 @@
 
 ### 方案一：Docker 部署 (推荐，最快)
 
+> **注意**：当前预构建镜像适用于 **ARM64** 架构 (如 Oracle ARM, Apple Silicon)。如果是 x86_64 环境，请使用方案二自行构建。
+
 直接运行预构建镜像，无需配置 Python 或 Go 环境：
 
 ```bash
@@ -41,7 +43,7 @@ pip install httpx fastapi uvicorn pydantic
 ```
 
 2. **二进制文件说明**
-源码仓库中已包含 `geminiweb2api` 二进制文件。如果在非 Linux x86_64 环境下运行，请从原项目 [XxxXTeam/geminiweb2api](https://github.com/XxxXTeam/geminiweb2api) 重新下载。
+源码仓库中已包含 `geminiweb2api` 二进制文件 (适用于 **Linux ARM64**)。如果在 **x86_64** 环境下运行，请务必从原项目 [XxxXTeam/geminiweb2api](https://github.com/XxxXTeam/geminiweb2api) 重新下载对应的二进制文件进行替换。
 
 3. **配置账号**
 你可以直接编辑 `gemini_accounts.json`，或者使用交互式脚本添加：
