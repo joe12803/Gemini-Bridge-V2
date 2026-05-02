@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  gemini-bridge-v2:
+    build: .
+    container_name: gemini-bridge-v2
+    ports:
+      - "18888:18888"
+    volumes:
+      - ./gemini_accounts.json:/app/gemini_accounts.json
+      - ./gemini_bridge.log:/app/gemini_bridge.log
+    restart: always
+    environment:
+      - TZ=Asia/Shanghai
