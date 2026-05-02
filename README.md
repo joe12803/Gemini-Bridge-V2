@@ -65,9 +65,48 @@ python api_server.py
 - `add_account.sh`: 账号交互式添加脚本。
 - `Dockerfile` & `docker-compose.yml`: 容器化配置文件。
 
-## ⚠️ 常见问题
-1. **端口冲突**：本项目内部会占用 `18888` (Python) 和 `18889` (Go Backend) 端口。
-2. **账号失效**：如果日志显示 "Account removed"，说明该账号的 Cookie 已失效，请重新获取并使用 `gemini-add-acc` 命令更新。
+## 🧪 测试与使用
+
+你可以直接使用 `curl` 快速验证服务状态：
+
+### 1. 基础对话
+```bash
+curl -X POST http://localhost:18888/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "gemini-3-flash",
+    "messages": [{"role": "user", "content": "你好"}],
+    "stream": false
+  }'
+```
+
+### 2. 工具调用 (Function Calling)
+```bash
+curl -X POST http://localhost:18888/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "gemini-3-flash",
+    "messages": [{"role": "user", "content": "帮我查一下北京的天气"}],
+    "tools": [
+      {
+        "type": "function",
+        "function": {
+          "name": "get_weather",
+          "description": "获取天气信息",
+          "parameters": {
+            "type": "object",
+            "properties": { "location": {"type": "string"} }
+          }
+        }
+      }
+    ]
+  }'
+```
+
+### 3. 配置热重载
+```bash
+curl http://localhost:18888/reload
+```
 
 ## 开源协议
 MIT
